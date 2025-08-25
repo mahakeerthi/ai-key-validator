@@ -7,6 +7,12 @@ on:
     branches: [main, develop]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
+  id-token: write
+
 jobs:
   test:
     name: Test
@@ -42,13 +48,14 @@ jobs:
 
       - name: Upload coverage reports to Codecov
         if: matrix.os == 'ubuntu-latest' && matrix.node-version == '20'
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/lcov.info
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: true
+          verbose: true
 
   build:
     name: Build
@@ -74,17 +81,21 @@ jobs:
       - name: Test CLI binary
         run: |
           # Test that the CLI binary can be executed
-          node dist/cli.js --help || echo "CLI help command works"
+          node dist/cli.js --help
+          node dist/cli.js --version
+          # Test basic validation (will fail but should not crash)
+          node dist/cli.js -p openai -k test-key-123 || true
           
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts
+          name: build-artifacts-${{ github.sha }}
           path: |
             dist/
             package.json
             README.md
           retention-days: 7
+          compression-level: 9
 
   security:
     name: Security Scan
@@ -108,15 +119,18 @@ jobs:
         run: npm audit --audit-level high
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v3
         with:
-          languages: javascript
+          languages: javascript-typescript
+          queries: security-and-quality
 
       - name: Build for CodeQL
         run: npm run build
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"
 
   dependency-review:
     name: Dependency Review
@@ -128,7 +142,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Dependency Review
-        uses: actions/dependency-review-action@v3
+        uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: moderate
           allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC
+          deny-licenses: GPL-3.0, AGPL-3.0
+          comment-summary-in-pr: always

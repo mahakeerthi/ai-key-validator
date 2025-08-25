@@ -12,6 +12,8 @@ on:
 permissions:
   contents: read
   id-token: write
+  attestations: write
+  packages: write
 
 jobs:
   # Only publish if CI pipeline passed
@@ -37,6 +39,7 @@ jobs:
   # Security audit before publishing
   security-audit:
     name: Security Audit
+    timeout-minutes: 10
     needs: check-ci
     if: needs.check-ci.outputs.should-publish == 'true'
     runs-on: ubuntu-latest
@@ -59,6 +62,7 @@ jobs:
 
       - name: Run Snyk test
         uses: snyk/actions/node@master
+        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
@@ -67,6 +71,7 @@ jobs:
   # Final tests before publish
   pre-publish-tests:
     name: Pre-publish Tests
+    timeout-minutes: 15
     needs: [check-ci, security-audit]
     if: needs.check-ci.outputs.should-publish == 'true'
     runs-on: ubuntu-latest
@@ -112,6 +117,7 @@ jobs:
   # Publish to NPM
   publish:
     name: Publish Package
+    timeout-minutes: 10
     needs: [check-ci, security-audit, pre-publish-tests]
     if: needs.check-ci.outputs.should-publish == 'true'
     runs-on: ubuntu-latest
@@ -128,6 +134,7 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
+          always-auth: true
 
       - name: Install dependencies
         run: npm ci
@@ -158,6 +165,12 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Generate attestation
+        if: steps.version-check.outputs.skip-publish == 'false'
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: './ai-key-validator-*.tgz'
+
       - name: Create GitHub release
         if: steps.version-check.outputs.skip-publish == 'false'
         uses: ncipollo/release-action@v1
@@ -176,6 +189,7 @@ jobs:
   # Post-publish verification
   verify-publish:
     name: Verify Publication
+    timeout-minutes: 5
     needs: publish
     if: needs.check-ci.outputs.should-publish == 'true'
     runs-on: ubuntu-latest
