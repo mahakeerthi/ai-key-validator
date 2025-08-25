@@ -19,16 +19,17 @@ export type {
   ValidationError,
 } from "./types";
 
-// Provider exports (will be implemented in future tasks)
-// export { OpenAIProvider } from "./providers/openai-provider";
-// export { ClaudeProvider } from "./providers/claude-provider";
-// export { GeminiProvider } from "./providers/gemini-provider";
-// export { BaseProvider } from "./providers/base-provider";
+// Provider exports
+export * from "./providers";
 
-// Core utilities (will be implemented in future tasks)
-// export { PluginManager } from "./core/plugin-manager";
-// export { SecurityManager } from "./security/security-manager";
-// export { ConfigManager } from "./core/config-manager";
+// Security exports
+export * from "./security";
+
+// Utility exports
+export * from "./utils";
+
+// CLI exports
+export * from "./cli";
 
 // Error classes
 export {
