@@ -1,0 +1,43 @@
+# Build output
+dist/
+lib/
+build/
+
+# Dependencies
+node_modules/
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+logs/
+
+# Cache directories
+.cache/
+.parcel-cache/
+.eslintcache
+
+# Temporary files
+tmp/
+temp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Package files
+*.tgz
+package-lock.json
+yarn.lock
+
+# Generated files
+*.tsbuildinfo
+
+# Documentation that should maintain original formatting
+CHANGELOG.md
