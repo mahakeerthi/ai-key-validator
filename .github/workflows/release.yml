@@ -1,0 +1,140 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g., 1.0.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test:coverage
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Build package
+        run: npm run build
+
+      - name: Verify package can be packed
+        run: npm pack --dry-run
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Simple changelog generation (you might want to use a more sophisticated tool)
+          if git tag --list | grep -q "v"; then
+            LAST_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+            if [ -n "$LAST_TAG" ]; then
+              echo "## Changes since $LAST_TAG" > CHANGELOG.tmp
+              git log --pretty=format:"- %s" ${LAST_TAG}..HEAD >> CHANGELOG.tmp
+            else
+              echo "## Initial Release" > CHANGELOG.tmp
+              git log --pretty=format:"- %s" HEAD >> CHANGELOG.tmp
+            fi
+          else
+            echo "## Initial Release" > CHANGELOG.tmp
+            git log --pretty=format:"- %s" HEAD >> CHANGELOG.tmp
+          fi
+          
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          cat CHANGELOG.tmp >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          body: |
+            # AI Key Validator ${{ github.ref_name }}
+            
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ## Installation
+            ```bash
+            npm install -g ai-key-validator@${{ github.ref_name }}
+            ```
+            
+            ## Usage
+            ```bash
+            # Interactive mode
+            npx ai-key-validator
+            
+            # Headless mode
+            npx ai-key-validator -p openai --api-key <your-key>
+            ```
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Upload release assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./ai-key-validator-${{ github.ref_name }}.tgz
+          asset_name: ai-key-validator-${{ github.ref_name }}.tgz
+          asset_content_type: application/gzip
+
+      - name: Update package registry
+        run: |
+          echo "Package published to npm: https://www.npmjs.com/package/ai-key-validator"
+          echo "Documentation: https://github.com/mahakeerthi/ai-key-validator#readme"
+
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: release
+    if: always()
+
+    steps:
+      - name: Notify on success
+        if: needs.release.result == 'success'
+        run: |
+          echo "✅ Release ${{ github.ref_name }} was successful!"
+          echo "📦 Package is available at: https://www.npmjs.com/package/ai-key-validator"
+
+      - name: Notify on failure
+        if: needs.release.result == 'failure'
+        run: |
+          echo "❌ Release ${{ github.ref_name }} failed!"
+          echo "Please check the logs and retry."
+          exit 1
