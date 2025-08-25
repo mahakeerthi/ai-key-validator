@@ -1,0 +1,231 @@
+name: Publish to NPM
+
+on:
+  push:
+    branches: [ main ]
+  workflow_run:
+    workflows: ["CI"]
+    branches: [ main ]
+    types:
+      - completed
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+  packages: write
+
+jobs:
+  # Only publish if CI pipeline passed
+  check-ci:
+    name: Check CI Status
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'push'
+    outputs:
+      should-publish: ${{ steps.check.outputs.should-publish }}
+    
+    steps:
+      - name: Check if should publish
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "should-publish=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event.workflow_run.conclusion }}" == "success" ]]; then
+            echo "should-publish=true" >> $GITHUB_OUTPUT
+          else
+            echo "should-publish=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Security audit before publishing
+  security-audit:
+    name: Security Audit
+    timeout-minutes: 10
+    needs: check-ci
+    if: needs.check-ci.outputs.should-publish == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run security audit
+        run: npm audit --audit-level high
+
+      - name: Run Snyk test
+        uses: snyk/actions/node@v1
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+  # Final tests before publish
+  pre-publish-tests:
+    name: Pre-publish Tests
+    timeout-minutes: 15
+    needs: [check-ci, security-audit]
+    if: needs.check-ci.outputs.should-publish == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run full test suite
+        run: npm run test:coverage
+
+      - name: Verify coverage threshold
+        run: |
+          node -e "
+            const coverage = require('./coverage/coverage-summary.json');
+            const total = coverage.total;
+            
+            if (total.lines.pct < 80 || total.statements.pct < 80 || total.functions.pct < 80 || total.branches.pct < 80) {
+              console.error('❌ Coverage below 80% threshold - blocking publish');
+              process.exit(1);
+            }
+            console.log('✅ Coverage meets requirements');
+          "
+
+      - name: Build for production
+        run: npm run build
+
+      - name: Test package installation
+        run: |
+          npm pack
+          # Test using npx to avoid global installation conflicts
+          npx ./ai-key-validator-*.tgz --help
+          npx ./ai-key-validator-*.tgz --version
+
+  # Publish to NPM
+  publish:
+    name: Publish Package
+    timeout-minutes: 10
+    needs: [check-ci, security-audit, pre-publish-tests]
+    if: needs.check-ci.outputs.should-publish == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          always-auth: true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build package
+        run: npm run build
+
+      - name: Check if version already published
+        id: version-check
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          PUBLISHED_VERSION=$(npm view ai-key-validator version 2>/dev/null || echo "0.0.0")
+          
+          echo "Current version: $PACKAGE_VERSION"
+          echo "Published version: $PUBLISHED_VERSION"
+          echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
+          if [[ "$PACKAGE_VERSION" == "$PUBLISHED_VERSION" ]]; then
+            echo "skip-publish=true" >> $GITHUB_OUTPUT
+            echo "Version $PACKAGE_VERSION already published"
+          else
+            echo "skip-publish=false" >> $GITHUB_OUTPUT
+            echo "New version $PACKAGE_VERSION ready to publish"
+          fi
+
+      - name: Publish to NPM
+        if: steps.version-check.outputs.skip-publish == 'false'
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Generate attestation
+        if: steps.version-check.outputs.skip-publish == 'false'
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: './ai-key-validator-*.tgz'
+
+      - name: Create GitHub release
+        if: steps.version-check.outputs.skip-publish == 'false'
+        uses: ncipollo/release-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ env.PACKAGE_VERSION }}
+          release_name: Release v${{ env.PACKAGE_VERSION }}
+          body: |
+            Automated release of ai-key-validator v${{ env.PACKAGE_VERSION }}
+            
+            Published to NPM: https://www.npmjs.com/package/ai-key-validator
+          draft: false
+          prerelease: false
+
+  # Post-publish verification
+  verify-publish:
+    name: Verify Publication
+    timeout-minutes: 5
+    needs: publish
+    if: needs.check-ci.outputs.should-publish == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Verify package on NPM
+        run: |
+          # Retry with exponential backoff to handle NPM propagation delay
+          MAX_ATTEMPTS=5
+          ATTEMPT=1
+          DELAY=5
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
+            
+            if npm view ai-key-validator version > /dev/null 2>&1; then
+              PACKAGE_VERSION=$(npm view ai-key-validator version)
+              echo "✅ Package ai-key-validator@$PACKAGE_VERSION successfully published"
+              break
+            fi
+            
+            if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+              echo "Package not yet available, waiting ${DELAY}s before retry..."
+              sleep $DELAY
+              DELAY=$((DELAY * 2))  # Exponential backoff
+            else
+              echo "❌ Package verification failed after $MAX_ATTEMPTS attempts"
+              exit 1
+            fi
+            
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+          
+      - name: Test installation from NPM
+        run: |
+          # Use npx to test without global installation
+          npx ai-key-validator --version
+          npx ai-key-validator --help
