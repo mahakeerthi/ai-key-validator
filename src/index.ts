@@ -12,6 +12,7 @@ export { AIKeyValidator } from "./core/validator";
 export type {
   IProviderPlugin,
   ValidationResult,
+  PatternValidationResult,
   ValidatorConfig,
   SecurityContext,
   ProviderType,
@@ -24,6 +25,9 @@ export type {
 // export { ClaudeProvider } from "./providers/claude-provider";
 // export { GeminiProvider } from "./providers/gemini-provider";
 // export { BaseProvider } from "./providers/base-provider";
+
+// Pattern validators
+export { validateOpenAIKeyPattern } from "./core/pattern-validators";
 
 // Core utilities (will be implemented in future tasks)
 // export { PluginManager } from "./core/plugin-manager";

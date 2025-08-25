@@ -4,7 +4,8 @@
  * Main validator class that orchestrates API key validation across providers.
  */
 
-import { ProviderType, ValidationResult, ValidatorConfig } from "../types";
+import { ProviderType, ValidationResult, ValidatorConfig, PatternValidationResult } from "../types";
+import { validateOpenAIKeyPattern } from "./pattern-validators";
 
 /**
  * Core AI Key Validator class
@@ -111,6 +112,46 @@ export class AIKeyValidator {
    */
   public getConfig(): ValidatorConfig {
     return { ...this.config };
+  }
+
+  /**
+   * Validate API key pattern without making network requests
+   * @param provider - The AI provider type
+   * @param apiKey - The API key to validate
+   * @returns Pattern validation result
+   */
+  public validatePattern(provider: ProviderType, apiKey: string): PatternValidationResult {
+    if (!this.isValidProvider(provider)) {
+      return {
+        valid: false,
+        errorCode: "INVALID_PREFIX",
+        message: `Unsupported provider: ${String(provider)}`,
+        provider,
+        responseTime: 0,
+        timestamp: new Date(),
+      };
+    }
+
+    switch (provider) {
+      case "openai":
+        return validateOpenAIKeyPattern(apiKey);
+      case "claude":
+        // TODO: Implement Claude pattern validation
+        throw new Error("Claude pattern validation not yet implemented");
+      case "gemini":
+        // TODO: Implement Gemini pattern validation  
+        throw new Error("Gemini pattern validation not yet implemented");
+      default:
+        // This should never happen due to isValidProvider check
+        return {
+          valid: false,
+          errorCode: "INVALID_PREFIX",
+          message: "Unknown provider",
+          provider,
+          responseTime: 0,
+          timestamp: new Date(),
+        };
+    }
   }
 
   /**

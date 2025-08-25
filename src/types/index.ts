@@ -7,6 +7,22 @@
 // Provider types
 export type ProviderType = "openai" | "claude" | "gemini";
 
+// Pattern validation result interface
+export interface PatternValidationResult {
+  /** Whether the API key pattern is valid */
+  valid: boolean;
+  /** Error code if validation failed */
+  errorCode?: "INVALID_PREFIX" | "INVALID_LENGTH" | "INVALID_CHARACTERS";
+  /** Human-readable error message */
+  message: string;
+  /** Provider that was validated */
+  provider: ProviderType;
+  /** Response time in milliseconds */
+  responseTime: number;
+  /** Timestamp when validation was performed */
+  timestamp: Date;
+}
+
 // Validation result interface
 export interface ValidationResult {
   /** Whether the API key is valid */
