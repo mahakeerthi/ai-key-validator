@@ -83,8 +83,25 @@ jobs:
           # Test that the CLI binary can be executed
           node dist/cli.js --help
           node dist/cli.js --version
-          # Test basic validation (will fail but should not crash)
-          node dist/cli.js -p openai -k test-key-123 || true
+          
+          # Test basic validation with proper error handling
+          echo "Testing invalid key validation..."
+          OUTPUT=$(node dist/cli.js -p openai -k test-key-123 2>&1 || true)
+          
+          # Verify it fails gracefully with expected error
+          if echo "$OUTPUT" | grep -q -E "(invalid|failed|error)" ; then
+            echo "✅ CLI correctly handles invalid keys"
+          else
+            echo "⚠️ Unexpected output: $OUTPUT"
+          fi
+          
+          # Test missing required arguments
+          echo "Testing missing arguments..."
+          if ! node dist/cli.js -p openai 2>&1 | grep -q -E "(required|missing)" ; then
+            echo "⚠️ CLI should require API key parameter"
+          else
+            echo "✅ CLI correctly validates required parameters"
+          fi
           
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

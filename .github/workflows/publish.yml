@@ -61,7 +61,7 @@ jobs:
         run: npm audit --audit-level high
 
       - name: Run Snyk test
-        uses: snyk/actions/node@master
+        uses: snyk/actions/node@v1
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -111,8 +111,9 @@ jobs:
       - name: Test package installation
         run: |
           npm pack
-          npm install -g ai-key-validator-*.tgz
-          ai-key-validator --help
+          # Test using npx to avoid global installation conflicts
+          npx ./ai-key-validator-*.tgz --help
+          npx ./ai-key-validator-*.tgz --version
 
   # Publish to NPM
   publish:
@@ -178,9 +179,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: v${{ env.PACKAGE_VERSION }}
-          release_name: Releasev${{ env.PACKAGE_VERSION }}
+          release_name: Release v${{ env.PACKAGE_VERSION }}
           body: |
-            Automated release of ai-key-validatorv${{ env.PACKAGE_VERSION }}
+            Automated release of ai-key-validator v${{ env.PACKAGE_VERSION }}
             
             Published to NPM: https://www.npmjs.com/package/ai-key-validator
           draft: false
@@ -197,11 +198,34 @@ jobs:
     steps:
       - name: Verify package on NPM
         run: |
-          sleep 30  # Wait for NPM to propagate
-          PACKAGE_VERSION=$(npm view ai-key-validator version)
-          echo "✅ Package ai-key-validator@$PACKAGE_VERSION successfully published"
+          # Retry with exponential backoff to handle NPM propagation delay
+          MAX_ATTEMPTS=5
+          ATTEMPT=1
+          DELAY=5
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
+            
+            if npm view ai-key-validator version > /dev/null 2>&1; then
+              PACKAGE_VERSION=$(npm view ai-key-validator version)
+              echo "✅ Package ai-key-validator@$PACKAGE_VERSION successfully published"
+              break
+            fi
+            
+            if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+              echo "Package not yet available, waiting ${DELAY}s before retry..."
+              sleep $DELAY
+              DELAY=$((DELAY * 2))  # Exponential backoff
+            else
+              echo "❌ Package verification failed after $MAX_ATTEMPTS attempts"
+              exit 1
+            fi
+            
+            ATTEMPT=$((ATTEMPT + 1))
+          done
           
       - name: Test installation from NPM
         run: |
-          npm install -g ai-key-validator
-          ai-key-validator --version
+          # Use npx to test without global installation
+          npx ai-key-validator --version
+          npx ai-key-validator --help
