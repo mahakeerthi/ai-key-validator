@@ -252,6 +252,20 @@ export interface BatchValidationResult {
   errors?: ValidationError[];
 }
 
+// Pattern validation result (for local validation without API calls)
+export interface PatternValidationResult {
+  /** Whether the pattern is valid */
+  valid: boolean;
+  /** Error code if validation failed */
+  errorCode?: "INVALID_FORMAT" | "INVALID_LENGTH" | "INVALID_CHARACTERS";
+  /** Human-readable error message */
+  message: string;
+  /** Provider that was validated */
+  provider: ProviderType;
+  /** Validation time in milliseconds */
+  validationTime: number;
+}
+
 // Plugin registration info
 export interface PluginInfo {
   /** Plugin name/identifier */

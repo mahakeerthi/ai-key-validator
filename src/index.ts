@@ -17,12 +17,15 @@ export type {
   ProviderType,
   ValidationOptions,
   ValidationError,
+  PatternValidationResult,
 } from "./types";
 
-// Provider exports (will be implemented in future tasks)
+// Provider exports  
+export { validateGeminiPattern, getGeminiKeyFormat } from "./providers/gemini-validator";
+
+// Future provider exports
 // export { OpenAIProvider } from "./providers/openai-provider";
 // export { ClaudeProvider } from "./providers/claude-provider";
-// export { GeminiProvider } from "./providers/gemini-provider";
 // export { BaseProvider } from "./providers/base-provider";
 
 // Core utilities (will be implemented in future tasks)

@@ -4,7 +4,8 @@
  * Main validator class that orchestrates API key validation across providers.
  */
 
-import { ProviderType, ValidationResult, ValidatorConfig } from "../types";
+import { ProviderType, ValidationResult, ValidatorConfig, PatternValidationResult } from "../types";
+import { validateGeminiPattern } from "../providers/gemini-validator";
 
 /**
  * Core AI Key Validator class
@@ -119,6 +120,53 @@ export class AIKeyValidator {
    */
   public updateConfig(config: Partial<ValidatorConfig>): void {
     this.config = { ...this.config, ...config };
+  }
+
+  /**
+   * Validate API key pattern without making network requests
+   * @param provider - The AI provider type
+   * @param apiKey - The API key to validate
+   * @returns PatternValidationResult with validation status
+   */
+  public validatePattern(provider: ProviderType, apiKey: string): PatternValidationResult {
+    if (!this.isValidProvider(provider)) {
+      return {
+        valid: false,
+        errorCode: "INVALID_FORMAT",
+        message: `Unsupported provider: ${String(provider)}`,
+        provider: provider,
+        validationTime: 0,
+      };
+    }
+
+    switch (provider) {
+      case "gemini":
+        return validateGeminiPattern(apiKey);
+      case "openai":
+        // TODO: Implement OpenAI pattern validation
+        return {
+          valid: false,
+          message: "OpenAI pattern validation not yet implemented",
+          provider: "openai",
+          validationTime: 0,
+        };
+      case "claude":
+        // TODO: Implement Claude pattern validation  
+        return {
+          valid: false,
+          message: "Claude pattern validation not yet implemented",
+          provider: "claude",
+          validationTime: 0,
+        };
+      default:
+        return {
+          valid: false,
+          errorCode: "INVALID_FORMAT",
+          message: `Unsupported provider: ${String(provider)}`,
+          provider: provider,
+          validationTime: 0,
+        };
+    }
   }
 
   /**
