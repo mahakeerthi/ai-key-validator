@@ -19,11 +19,10 @@ export type {
   ValidationError,
 } from "./types";
 
-// Provider exports (will be implemented in future tasks)
-// export { OpenAIProvider } from "./providers/openai-provider";
-// export { ClaudeProvider } from "./providers/claude-provider";
-// export { GeminiProvider } from "./providers/gemini-provider";
-// export { BaseProvider } from "./providers/base-provider";
+// Provider exports
+export { OpenAIProvider } from "./providers/openai";
+// export { ClaudeProvider } from "./providers/claude-provider"; // Future implementation
+// export { GeminiProvider } from "./providers/gemini-provider"; // Future implementation
 
 // Core utilities (will be implemented in future tasks)
 // export { PluginManager } from "./core/plugin-manager";
