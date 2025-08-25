@@ -160,14 +160,14 @@ jobs:
 
       - name: Create GitHub release
         if: steps.version-check.outputs.skip-publish == 'false'
-        uses: actions/create-release@v1
+        uses: ncipollo/release-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v${{ steps.version-check.outputs.package-version }}
-          release_name: Release v${{ steps.version-check.outputs.package-version }}
+          tag_name: v${{ env.PACKAGE_VERSION }}
+          release_name: Releasev${{ env.PACKAGE_VERSION }}
           body: |
-            Automated release of ai-key-validator v${{ steps.version-check.outputs.package-version }}
+            Automated release of ai-key-validatorv${{ env.PACKAGE_VERSION }}
             
             Published to NPM: https://www.npmjs.com/package/ai-key-validator
           draft: false
