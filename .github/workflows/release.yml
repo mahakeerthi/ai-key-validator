@@ -48,27 +48,8 @@ jobs:
       - name: Verify package can be packed
         run: npm pack --dry-run
 
-      - name: Generate changelog
-        id: changelog
-        run: |
-          # Simple changelog generation (you might want to use a more sophisticated tool)
-          if git tag --list | grep -q "v"; then
-            LAST_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
-            if [ -n "$LAST_TAG" ]; then
-              echo "## Changes since $LAST_TAG" > CHANGELOG.tmp
-              git log --pretty=format:"- %s" ${LAST_TAG}..HEAD >> CHANGELOG.tmp
-            else
-              echo "## Initial Release" > CHANGELOG.tmp
-              git log --pretty=format:"- %s" HEAD >> CHANGELOG.tmp
-            fi
-          else
-            echo "## Initial Release" > CHANGELOG.tmp
-            git log --pretty=format:"- %s" HEAD >> CHANGELOG.tmp
-          fi
-          
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          cat CHANGELOG.tmp >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+      - name: Create package tarball
+        run: npm pack
 
       - name: Create GitHub Release
         id: create_release
@@ -126,6 +107,18 @@ jobs:
     if: always()
 
     steps:
+      - name: Upload release assets
+        run: |
+          TARBALL_NAME=$(ls ai-key-validator-*.tgz | head -n1)
+          if [ -n "$TARBALL_NAME" ]; then
+            echo "Uploading $TARBALL_NAME as release asset"
+            gh release upload ${{ github.ref_name }} "$TARBALL_NAME" --clobber
+          else
+            echo "No tarball found to upload"
+            exit 1
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Notify on success
         if: needs.release.result == 'success'
         run: |

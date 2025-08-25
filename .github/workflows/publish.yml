@@ -143,7 +143,7 @@ jobs:
           
           echo "Current version: $PACKAGE_VERSION"
           echo "Published version: $PUBLISHED_VERSION"
-          
+          echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
           if [[ "$PACKAGE_VERSION" == "$PUBLISHED_VERSION" ]]; then
             echo "skip-publish=true" >> $GITHUB_OUTPUT
             echo "Version $PACKAGE_VERSION already published"
