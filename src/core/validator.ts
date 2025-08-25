@@ -4,7 +4,8 @@
  * Main validator class that orchestrates API key validation across providers.
  */
 
-import { ProviderType, ValidationResult, ValidatorConfig } from "../types";
+import { ProviderType, ValidationResult, ValidatorConfig, PatternValidationResult } from "../types";
+import { AnthropicProvider } from "../providers/anthropic";
 
 /**
  * Core AI Key Validator class
@@ -14,6 +15,7 @@ import { ProviderType, ValidationResult, ValidatorConfig } from "../types";
  */
 export class AIKeyValidator {
   private config: ValidatorConfig;
+  private anthropicProvider: AnthropicProvider;
 
   /**
    * Create a new AI Key Validator instance
@@ -46,6 +48,9 @@ export class AIKeyValidator {
       },
       ...config,
     };
+
+    // Initialize provider instances
+    this.anthropicProvider = new AnthropicProvider();
   }
 
   /**
@@ -119,6 +124,72 @@ export class AIKeyValidator {
    */
   public updateConfig(config: Partial<ValidatorConfig>): void {
     this.config = { ...this.config, ...config };
+  }
+
+  /**
+   * Validate API key pattern without making network requests
+   * @param provider - The AI provider type
+   * @param apiKey - The API key to validate
+   * @returns Pattern validation result
+   */
+  public validatePattern(provider: ProviderType, apiKey: string): PatternValidationResult {
+    try {
+      // Basic input validation
+      if (!provider || !apiKey) {
+        return {
+          valid: false,
+          errorCode: "INVALID_PREFIX",
+          message: "Provider and API key are required",
+          validationTime: 0,
+        };
+      }
+
+      if (!this.isValidProvider(provider)) {
+        return {
+          valid: false,
+          errorCode: "INVALID_PREFIX",
+          message: `Unsupported provider: ${String(provider)}`,
+          validationTime: 0,
+        };
+      }
+
+      // Route to appropriate provider
+      switch (provider) {
+        case "claude":
+          return this.anthropicProvider.validatePattern(apiKey);
+        case "openai":
+          // TODO: Implement OpenAI pattern validation
+          return {
+            valid: false,
+            errorCode: "INVALID_PREFIX",
+            message: "OpenAI pattern validation not yet implemented",
+            validationTime: 0,
+          };
+        case "gemini":
+          // TODO: Implement Gemini pattern validation
+          return {
+            valid: false,
+            errorCode: "INVALID_PREFIX", 
+            message: "Gemini pattern validation not yet implemented",
+            validationTime: 0,
+          };
+        default:
+          return {
+            valid: false,
+            errorCode: "INVALID_PREFIX",
+            message: "Unknown provider",
+            validationTime: 0,
+          };
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      return {
+        valid: false,
+        errorCode: "INVALID_CHARACTERS",
+        message: `Pattern validation error: ${errorMessage}`,
+        validationTime: 0,
+      };
+    }
   }
 
   /**

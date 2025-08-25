@@ -267,3 +267,15 @@ export interface PluginInfo {
   /** Plugin instance */
   instance: IProviderPlugin;
 }
+
+// Pattern validation result interface (for local format validation)
+export interface PatternValidationResult {
+  /** Whether the API key format is valid */
+  valid: boolean;
+  /** Error code if validation failed */
+  errorCode?: "INVALID_PREFIX" | "INVALID_LENGTH" | "INVALID_CHARACTERS";
+  /** Human-readable error message */
+  message: string;
+  /** Validation time in milliseconds */
+  validationTime: number;
+}
